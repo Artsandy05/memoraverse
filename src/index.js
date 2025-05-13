@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import App from './App';
 import './styles.css';
+import { QRCodeSVG } from 'qrcode.react';
 
 // Device orientation permission handler
 function DeviceOrientationPermission({ onPermissionGranted }) {
@@ -154,17 +155,22 @@ function Root() {
         <p>This AR experience is designed for mobile devices. Please open this page on your smartphone or tablet.</p>
         <p>Scan the QR code below or visit this URL on your mobile device:</p>
         
-        {/* Placeholder for QR code */}
+        {/* QR Code with styling */}
         <div style={{
-          width: '200px',
-          height: '200px',
-          backgroundColor: '#222',
           margin: '1rem',
-          display: 'flex',
-          justifyContent: 'center',
-          alignItems: 'center'
+          padding: '16px',
+          backgroundColor: 'white',
+          borderRadius: '8px',
+          boxShadow: '0 4px 12px rgba(0,0,0,0.2)'
         }}>
-          [QR Code Placeholder]
+          <QRCodeSVG 
+            value="https://memoraverse.vercel.app/" 
+            size={200}
+            level="H"
+            includeMargin={true}
+            bgColor="#FFFFFF"
+            fgColor="#000000"
+          />
         </div>
       </div>
     );
