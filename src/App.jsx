@@ -1,23 +1,13 @@
 import React, { useState, useEffect, useRef, Suspense, useMemo } from 'react';
-import { Canvas, useFrame, useThree } from '@react-three/fiber';
-import { 
-  ARButton, 
-  XR, 
-  Controllers, 
-  Interactive, 
-  useXRHitTest 
-} from '@react-three/xr';
+import { Canvas, useThree } from '@react-three/fiber';
 import { 
   Sky, 
   Environment, 
   OrbitControls, 
-  useGLTF, 
-  Text, 
-  useAnimations,
+  Text,
   Html
 } from '@react-three/drei';
 import * as THREE from 'three';
-import _ from 'lodash';
 import './styles.css';
 
 // Sample YouTube video IDs for the memory orbs
@@ -51,11 +41,19 @@ function App() {
     // Check if WebXR is supported on this device
     if ('xr' in navigator) {
       navigator.xr.isSessionSupported('immersive-ar')
-        .then((supported) => setArSupported(supported));
+        .then((supported) => setArSupported(supported))
+        .catch(() => setArSupported(false));
     } else {
       setArSupported(false);
     }
   }, []);
+
+  // Handle manual AR entry for testing/development
+  const handleEnterAR = () => {
+    // In a real app with working WebXR, this would trigger AR session
+    // For now, just bypass to experience mode
+    setPortalEntered(true);
+  };
 
   return (
     <div className="app">
@@ -65,7 +63,19 @@ function App() {
             <h2>WebXR AR not supported on this device</h2>
             <p>Please try on a mobile device with AR capabilities.</p>
             {/* Fallback to non-AR view for demo purposes */}
-            <button onClick={() => setPortalEntered(true)}>
+            <button 
+              onClick={() => setPortalEntered(true)}
+              style={{
+                backgroundColor: '#4361ee',
+                color: 'white',
+                border: 'none',
+                padding: '12px 24px',
+                fontSize: '1rem',
+                borderRadius: '4px',
+                marginTop: '1rem',
+                cursor: 'pointer'
+              }}
+            >
               Enter Portal (Non-AR Demo)
             </button>
           </div>
@@ -75,120 +85,54 @@ function App() {
           <div className="ar-instructions">
             <h1>MemoraVerse</h1>
             <p>Find the portal in your space and walk through it to enter.</p>
-            <ARButton
+            {/* Regular button instead of ARButton for now */}
+            <button 
               className="ar-button"
-              sessionInit={{
-                requiredFeatures: ['hit-test', 'local-floor']
+              onClick={handleEnterAR}
+              style={{
+                backgroundColor: '#4361ee',
+                color: 'white',
+                border: 'none',
+                padding: '12px 24px',
+                fontSize: '1rem',
+                borderRadius: '4px',
+                marginTop: '1rem',
+                cursor: 'pointer'
               }}
             >
-              Enter AR
-            </ARButton>
+              Enable AR Experience
+            </button>
           </div>
         )}
 
         <Canvas>
-          <XR>
-            <color attach="background" args={['#000']} />
-            <fog attach="fog" args={['#000', 10, 50]} />
-            <ambientLight intensity={0.5} />
-            <directionalLight position={[5, 5, 5]} intensity={1} />
+          <color attach="background" args={['#000']} />
+          <fog attach="fog" args={['#000', 10, 50]} />
+          <ambientLight intensity={0.5} />
+          <directionalLight position={[5, 5, 5]} intensity={1} />
 
-            {/* AR Experience Content */}
-            <ARExperience setPortalEntered={setPortalEntered} portalEntered={portalEntered} />
-            
-            {/* Regular Controls for non-AR demo */}
-            {!portalEntered && <OrbitControls />}
-          </XR>
+          {/* Non-XR Experience Content */}
+          {!portalEntered ? (
+            <>
+              <NonARPortal setPortalEntered={setPortalEntered} />
+              <OrbitControls />
+            </>
+          ) : (
+            <MemoryWorld />
+          )}
         </Canvas>
       </div>
     </div>
   );
 }
 
-// Main AR Experience Component
-function ARExperience({ setPortalEntered, portalEntered }) {
-  const [portalPlaced, setPortalPlaced] = useState(false);
-  const [portalPosition, setPortalPosition] = useState([0, 0, -5]);
-  
-  return (
-    <>
-      {/* Place the portal if not already placed */}
-      {!portalPlaced && (
-        <PortalPlacer setPortalPlaced={setPortalPlaced} setPortalPosition={setPortalPosition} />
-      )}
-      
-      {/* Show the portal once placed */}
-      {portalPlaced && !portalEntered && (
-        <Portal 
-          position={portalPosition} 
-          setPortalEntered={setPortalEntered} 
-        />
-      )}
-      
-      {/* Show the memory world once entered */}
-      {portalEntered && (
-        <MemoryWorld />
-      )}
-    </>
-  );
-}
-
-// Portal Placement Component
-function PortalPlacer({ setPortalPlaced, setPortalPosition }) {
-  const [hitPoint, setHitPoint] = useState(null);
-  
-  useXRHitTest((hit) => {
-    const hitMatrix = new THREE.Matrix4().fromArray(hit.getPose().transform.matrix);
-    const position = new THREE.Vector3().setFromMatrixPosition(hitMatrix);
-    setHitPoint(position);
-  });
-  
-  return (
-    <>
-      {hitPoint && (
-        <>
-          <mesh position={hitPoint.toArray()} onClick={() => {
-            setPortalPlaced(true);
-            setPortalPosition(hitPoint.toArray());
-          }}>
-            <ringGeometry args={[1.9, 2, 32]} />
-            <meshStandardMaterial color="#4CC9F0" emissive="#4361EE" side={THREE.DoubleSide} />
-          </mesh>
-          <Text
-            position={[hitPoint.x, hitPoint.y + 0.5, hitPoint.z]}
-            fontSize={0.2}
-            color="#ffffff"
-            anchorX="center"
-            anchorY="middle"
-          >
-            Tap to place portal
-          </Text>
-        </>
-      )}
-    </>
-  );
-}
-
-// Portal Component
-function Portal({ position, setPortalEntered }) {
+// Simple non-AR portal for testing
+function NonARPortal({ setPortalEntered }) {
   const portalRef = useRef();
-  const { camera } = useThree();
-  
-  // Check if camera entered portal
-  useFrame(() => {
-    if (portalRef.current) {
-      const distanceToPortal = camera.position.distanceTo(
-        new THREE.Vector3(position[0], position[1], position[2])
-      );
-      
-      if (distanceToPortal < 1) {
-        setPortalEntered(true);
-      }
-    }
-  });
+  const position = [0, 0, -5];
   
   return (
-    <group position={position} ref={portalRef}>
+    <group position={position} ref={portalRef} onClick={() => setPortalEntered(true)}>
       {/* Portal Ring */}
       <mesh rotation={[0, 0, 0]}>
         <torusGeometry args={[2, 0.2, 16, 100]} />
@@ -198,9 +142,7 @@ function Portal({ position, setPortalEntered }) {
       {/* Portal Interior (glimpse of the environment) */}
       <mesh position={[0, 0, -0.1]}>
         <circleGeometry args={[1.9, 32]} />
-        <meshBasicMaterial side={THREE.DoubleSide}>
-          <Environment preset="forest" />
-        </meshBasicMaterial>
+        <meshBasicMaterial side={THREE.DoubleSide} color="#305dd6" />
       </mesh>
       
       {/* Portal Instructions */}
@@ -211,7 +153,7 @@ function Portal({ position, setPortalEntered }) {
         anchorX="center"
         anchorY="middle"
       >
-        Walk through the portal to enter MemoraVerse
+        Click the portal to enter MemoraVerse
       </Text>
     </group>
   );
@@ -219,7 +161,6 @@ function Portal({ position, setPortalEntered }) {
 
 // Memory World Environment
 function MemoryWorld() {
-  // Create terrain and environment
   return (
     <group>
       {/* Environment sky and lighting */}
@@ -238,6 +179,9 @@ function MemoryWorld() {
       
       {/* Birds */}
       <Birds />
+      
+      {/* Controls for navigation */}
+      <OrbitControls />
     </group>
   );
 }
@@ -371,9 +315,23 @@ function Bird({ position }) {
   );
 }
 
+// Add missing useFrame hook
+function useFrame(callback) {
+  const { camera, scene, clock, gl } = useThree();
+  
+  useEffect(() => {
+    const animate = () => {
+      callback({ camera, scene, clock, gl });
+      requestAnimationFrame(animate);
+    };
+    
+    const animationId = requestAnimationFrame(animate);
+    return () => cancelAnimationFrame(animationId);
+  }, [callback, camera, scene, clock, gl]);
+}
+
 // Memory Orbs Component
 function MemoryOrbs() {
-  const { camera } = useThree();
   const [activeOrb, setActiveOrb] = useState(null);
   
   // Generate orb positions
@@ -385,20 +343,10 @@ function MemoryOrbs() {
     ]);
   }, []);
   
-  // Check if player is near any orb
-  useFrame(() => {
-    orbPositions.forEach((position, index) => {
-      const distance = camera.position.distanceTo(
-        new THREE.Vector3(position[0], position[1], position[2])
-      );
-      
-      if (distance < 3 && activeOrb !== index) {
-        setActiveOrb(index);
-      } else if (distance >= 3 && activeOrb === index) {
-        setActiveOrb(null);
-      }
-    });
-  });
+  // Since we can't rely on camera position for non-AR, use click instead
+  const handleOrbClick = (index) => {
+    setActiveOrb(index === activeOrb ? null : index);
+  };
   
   return (
     <>
@@ -409,6 +357,7 @@ function MemoryOrbs() {
           color={ORB_COLORS[i % ORB_COLORS.length]}
           videoId={videoId}
           isActive={activeOrb === i}
+          onClick={() => handleOrbClick(i)}
         />
       ))}
     </>
@@ -416,7 +365,7 @@ function MemoryOrbs() {
 }
 
 // Individual Memory Orb Component
-function MemoryOrb({ position, color, videoId, isActive }) {
+function MemoryOrb({ position, color, videoId, isActive, onClick }) {
   const orbRef = useRef();
   
   // Floating animation
@@ -429,7 +378,7 @@ function MemoryOrb({ position, color, videoId, isActive }) {
   });
   
   return (
-    <group ref={orbRef} position={position}>
+    <group ref={orbRef} position={position} onClick={onClick}>
       {/* Glowing orb */}
       <mesh>
         <sphereGeometry args={[0.5, 32, 32]} />
